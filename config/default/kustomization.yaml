@@ -1,0 +1,8 @@
+namespace: botmux-system
+
+resources:
+- namespace.yaml
+- ../crd
+- ../rbac
+- ../manager
+- ../prometheus

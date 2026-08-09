@@ -1,0 +1,16 @@
+domain: botmux.io
+layout:
+- go.kubebuilder.io/v4
+projectName: botmux-operator
+repo: github.com/warjiang/botmux-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: botmux.io
+  group: botmux
+  kind: BotmuxUser
+  path: github.com/warjiang/botmux-operator/api/v1alpha1
+  version: v1alpha1
+version: "3"

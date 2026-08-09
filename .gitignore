@@ -1,0 +1,6 @@
+/bin/
+/cover.out
+/.idea/
+/.vscode/
+*.swp
+.DS_Store

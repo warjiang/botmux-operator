@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: controller-manager-metrics-service
+  namespace: system
+  labels:
+    app.kubernetes.io/name: botmux-operator
+spec:
+  selector:
+    control-plane: controller-manager
+  ports:
+  - name: http
+    port: 8443
+    protocol: TCP
+    targetPort: metrics
