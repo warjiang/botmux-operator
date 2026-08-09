@@ -2,17 +2,31 @@
 set -euo pipefail
 
 cluster_name="${KIND_CLUSTER_NAME:-botmux-operator-e2e}"
+kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5}"
 operator_image="botmux-operator:e2e"
 runtime_image="botmux-runtime:e2e"
 
 cleanup() {
+  status=$?
+  trap - EXIT
+  set +e
+  if (( status != 0 )) && [[ -n "${E2E_ARTIFACT_DIR:-}" ]]; then
+    mkdir -p "${E2E_ARTIFACT_DIR}"
+    kubectl get pods,deployments,statefulsets,services,ingresses,persistentvolumeclaims,botmuxusers \
+      --all-namespaces -o wide >"${E2E_ARTIFACT_DIR}/resources.txt" 2>&1
+    kubectl get events --all-namespaces --sort-by=.lastTimestamp \
+      >"${E2E_ARTIFACT_DIR}/events.txt" 2>&1
+    kind export logs "${E2E_ARTIFACT_DIR}/kind" --name "${cluster_name}" \
+      >"${E2E_ARTIFACT_DIR}/kind-export.log" 2>&1
+  fi
   kind delete cluster --name "${cluster_name}" >/dev/null 2>&1 || true
+  exit "${status}"
 }
 trap cleanup EXIT
 
 docker build -t "${operator_image}" .
 docker build -t "${runtime_image}" test/e2e/runtime
-kind create cluster --name "${cluster_name}" --wait 120s
+kind create cluster --name "${cluster_name}" --image "${kind_node_image}" --wait 120s
 kind load docker-image --name "${cluster_name}" "${operator_image}" "${runtime_image}"
 
 kustomize build config/default \

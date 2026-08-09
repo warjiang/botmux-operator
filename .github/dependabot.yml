@@ -1,0 +1,26 @@
+version: 2
+updates:
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+    time: "02:00"
+    timezone: Asia/Shanghai
+  groups:
+    github-actions:
+      patterns:
+      - "*"
+
+- package-ecosystem: gomod
+  directory: /
+  schedule:
+    interval: monthly
+    time: "02:00"
+    timezone: Asia/Shanghai
+  open-pull-requests-limit: 5
+  groups:
+    kubernetes:
+      patterns:
+      - k8s.io/*
+      - sigs.k8s.io/controller-runtime

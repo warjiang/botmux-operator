@@ -9,7 +9,7 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 KUSTOMIZE_VERSION ?= v5.8.1
 SETUP_ENVTEST ?= $(LOCALBIN)/setup-envtest
 SETUP_ENVTEST_VERSION ?= release-0.24
-ENVTEST_K8S_VERSION ?= 1.36.x!
+ENVTEST_K8S_VERSION ?= 1.36.2
 
 .PHONY: all
 all: test build

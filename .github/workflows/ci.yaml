@@ -5,47 +5,140 @@ on:
   push:
     branches:
     - main
+  workflow_dispatch:
 
-permissions:
-  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v6
+    - name: Check out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
-        go-version: "1.26.0"
+        persist-credentials: false
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
         cache: true
+    - name: Install quality tools
+      run: |
+        go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        GOTOOLCHAIN=go1.26.5 go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+        go install honnef.co/go/tools/cmd/staticcheck@v0.8.0-rc.1
+    - name: Validate workflows
+      run: actionlint
     - name: Verify formatting
-      run: test -z "$(gofmt -l .)"
-    - name: Generate manifests
+      run: test -z "$(gofmt -l -- $(git ls-files '*.go'))"
+    - name: Verify Go modules
+      run: go mod tidy -diff
+    - name: Generate manifests and code
       run: make manifests generate
     - name: Verify generated files
       run: git diff --exit-code
-    - name: Vet and unit tests
-      run: go vet ./... && go test ./... -race -coverprofile=cover.out
+    - name: Vet
+      run: go vet ./...
     - name: Staticcheck
-      run: go install honnef.co/go/tools/cmd/staticcheck@v0.8.0-rc.1 && staticcheck ./...
-    - name: Envtest
-      run: make envtest
-    - name: Build
-      run: go build -o /tmp/manager ./cmd
-
-  kind:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v6
+      run: staticcheck ./...
+    - name: Vulnerability check
+      run: govulncheck ./...
+    - name: Unit tests
+      run: go test ./... -race -covermode=atomic -coverprofile=cover.out
+    - name: Coverage summary
+      run: go tool cover -func=cover.out
+    - name: Upload coverage
+      if: ${{ always() && hashFiles('cover.out') != '' }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        go-version: "1.26.0"
+        name: coverage
+        path: cover.out
+        retention-days: 7
+    - name: Build manager
+      run: go build -trimpath -o /tmp/manager ./cmd
+    - name: Validate Dockerfiles
+      run: |
+        docker build --check -f Dockerfile .
+        docker build --check --build-arg BOTMUX_VERSION=0.0.0 -f runtime/base/Dockerfile runtime/base
+        docker build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg CODEX_VERSION=0.0.0 -f runtime/codex/Dockerfile runtime/codex
+        docker build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg CLAUDE_CODE_VERSION=0.0.0 -f runtime/claude/Dockerfile runtime/claude
+        docker build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg GEMINI_VERSION=0.0.0 -f runtime/gemini/Dockerfile runtime/gemini
+
+  envtest:
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
         cache: true
-    - uses: helm/kind-action@v1
+    - name: Run envtest
+      run: make envtest
+
+  kind-e2e:
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      E2E_ARTIFACT_DIR: /tmp/kind-diagnostics
+      KIND_NODE_IMAGE: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+    - name: Install Kind
+      uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
       with:
         install_only: true
+        version: v0.32.0
     - name: Install kustomize
       run: go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
-    - name: Kind end-to-end
+    - name: Run Kind end-to-end tests
       run: test/e2e/kind.sh
+    - name: Upload Kind diagnostics
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: kind-diagnostics
+        path: ${{ env.E2E_ARTIFACT_DIR }}
+        if-no-files-found: warn
+        retention-days: 7
+
+  dependency-review:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Review dependency changes
+      uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      with:
+        fail-on-severity: high
