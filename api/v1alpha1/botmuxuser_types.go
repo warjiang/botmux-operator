@@ -105,7 +105,7 @@ type SchedulingSpec struct {
 
 // BotmuxUserSpec defines the desired state of BotmuxUser.
 // +kubebuilder:validation:XValidation:rule="self.lark.appId == oldSelf.lark.appId",message="spec.lark.appId is immutable"
-// +kubebuilder:validation:XValidation:rule="!self.ingress.enabled || size(self.ingress.host) > 0",message="spec.ingress.host is required when ingress is enabled"
+// +kubebuilder:validation:XValidation:rule="!has(self.ingress) || !self.ingress.enabled || (has(self.ingress.host) && size(self.ingress.host) > 0)",message="spec.ingress.host is required when ingress is enabled"
 type BotmuxUserSpec struct {
 	Lark       LarkSpec                    `json:"lark"`
 	Runtime    RuntimeSpec                 `json:"runtime"`

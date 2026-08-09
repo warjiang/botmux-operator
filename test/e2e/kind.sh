@@ -67,7 +67,7 @@ kubectl -n botmux-e2e delete pod botmux-alice-0 --wait=true
 kubectl -n botmux-e2e wait --for=condition=Ready pod/botmux-alice-0 --timeout=180s
 test "$(kubectl -n botmux-e2e exec botmux-alice-0 -c daemon -- cat /data/workspace/e2e-marker)" = "persisted"
 
-old_revision="$(kubectl -n botmux-e2e get statefulset botmux-alice -o jsonpath='{.spec.template.metadata.annotations.botmux\\.io/credentials-revision}')"
+old_revision="$(kubectl -n botmux-e2e get statefulset botmux-alice -o jsonpath='{.spec.template.metadata.annotations.botmux\.io/credentials-revision}')"
 kubectl -n botmux-e2e create secret generic alice-provider --from-literal=OPENAI_API_KEY=rotated --dry-run=client -o yaml | kubectl apply -f -
 for _ in $(seq 1 60); do
   pod_count="$(kubectl -n botmux-e2e get pods -l botmux.io/user=alice --no-headers 2>/dev/null | wc -l | tr -d ' ')"
@@ -75,7 +75,7 @@ for _ in $(seq 1 60); do
     echo "credential rotation created ${pod_count} alice Pods" >&2
     exit 1
   fi
-  new_revision="$(kubectl -n botmux-e2e get statefulset botmux-alice -o jsonpath='{.spec.template.metadata.annotations.botmux\\.io/credentials-revision}')"
+  new_revision="$(kubectl -n botmux-e2e get statefulset botmux-alice -o jsonpath='{.spec.template.metadata.annotations.botmux\.io/credentials-revision}')"
   if [[ "${new_revision}" != "${old_revision}" ]]; then
     break
   fi
@@ -97,6 +97,7 @@ test "$(kubectl -n botmux-e2e get ingress botmux-alice -o jsonpath='{.spec.rules
 test "$(kubectl -n botmux-e2e get ingress botmux-alice -o jsonpath='{.spec.tls[0].secretName}')" = "alice-tls"
 test "$(kubectl -n botmux-e2e get ingress botmux-alice -o jsonpath='{.spec.rules[0].http.paths[0].path}')" = "/"
 test "$(kubectl -n botmux-e2e get botmuxuser alice -o jsonpath='{.status.dashboardURL}')" = "https://alice.example.test"
+kubectl -n botmux-e2e rollout status statefulset/botmux-alice --timeout=180s
 
 kubectl -n botmux-e2e port-forward service/botmux-alice 17891:80 >/tmp/botmux-e2e-port-forward.log 2>&1 &
 port_forward_pid=$!
@@ -107,7 +108,7 @@ done
 websocket_status="$(curl --http1.1 -sS -o /dev/null -w '%{http_code}' \
   -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
   -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: ZTItdGVzdC1rZXk=' \
-  http://127.0.0.1:17891/s/e2e)"
+  http://127.0.0.1:17891/s/e2e || true)"
 kill "${port_forward_pid}" >/dev/null 2>&1 || true
 wait "${port_forward_pid}" 2>/dev/null || true
 test "${websocket_status}" = "101"

@@ -1194,7 +1194,8 @@ spec:
             - message: spec.lark.appId is immutable
               rule: self.lark.appId == oldSelf.lark.appId
             - message: spec.ingress.host is required when ingress is enabled
-              rule: '!self.ingress.enabled || size(self.ingress.host) > 0'
+              rule: '!has(self.ingress) || !self.ingress.enabled || (has(self.ingress.host)
+                && size(self.ingress.host) > 0)'
           status:
             description: BotmuxUserStatus defines the observed state of BotmuxUser.
             properties:
