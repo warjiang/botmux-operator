@@ -63,13 +63,15 @@ jobs:
         retention-days: 7
     - name: Build manager
       run: go build -trimpath -o /tmp/manager ./cmd
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
     - name: Validate Dockerfiles
       run: |
-        docker build --check -f Dockerfile .
-        docker build --check --build-arg BOTMUX_VERSION=0.0.0 -f runtime/base/Dockerfile runtime/base
-        docker build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg CODEX_VERSION=0.0.0 -f runtime/codex/Dockerfile runtime/codex
-        docker build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg CLAUDE_CODE_VERSION=0.0.0 -f runtime/claude/Dockerfile runtime/claude
-        docker build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg GEMINI_VERSION=0.0.0 -f runtime/gemini/Dockerfile runtime/gemini
+        docker buildx build --check -f Dockerfile .
+        docker buildx build --check --build-arg BOTMUX_VERSION=0.0.0 -f runtime/base/Dockerfile runtime/base
+        docker buildx build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg CODEX_VERSION=0.0.0 -f runtime/codex/Dockerfile runtime/codex
+        docker buildx build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg CLAUDE_CODE_VERSION=0.0.0 -f runtime/claude/Dockerfile runtime/claude
+        docker buildx build --check --build-arg BASE_IMAGE=node:22-bookworm-slim --build-arg GEMINI_VERSION=0.0.0 -f runtime/gemini/Dockerfile runtime/gemini
 
   envtest:
     runs-on: ubuntu-latest
