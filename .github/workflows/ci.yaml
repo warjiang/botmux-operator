@@ -37,7 +37,7 @@ jobs:
     - name: Validate workflows
       run: actionlint
     - name: Verify formatting
-      run: test -z "$(gofmt -l -- $(git ls-files '*.go'))"
+      run: test -z "$(gofmt -l .)"
     - name: Verify Go modules
       run: go mod tidy -diff
     - name: Generate manifests and code
